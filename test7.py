@@ -26,7 +26,7 @@ def get_blob_service_client():
 # Funkcja odczytu z Blob Storage
 def blob_read(blob_name):
     blob_service_client = get_blob_service_client()
-    blob_client = blob_service_client.get_blob_client("geotiff", blob_name)
+    blob_client = blob_service_client.get_blob_client("indeksy", blob_name)
 
     stream = io.BytesIO()
     blob_client.download_blob().readinto(stream)
