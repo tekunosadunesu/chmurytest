@@ -1,10 +1,8 @@
 import matplotlib.pyplot as plt
 import pystac_client
 import planetary_computer
-import geopandas as gpd
 import rioxarray
 import streamlit as st
-import leafmap.foliumap as leafmap
 import sqlalchemy
 from get_conn import get_connection_uri
 from azure.storage.blob import BlobServiceClient
