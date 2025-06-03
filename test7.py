@@ -14,14 +14,12 @@ import os
 import numpy as np
 from datetime import datetime
 
-
 # Inicjalizacja klienta Blob Storage
 def get_blob_service_client():
     account_name = os.getenv('AZURE_STORAGE_ACCOUNT')
     account_url = f"https://{account_name}.blob.core.windows.net"
     credential = DefaultAzureCredential()
     return BlobServiceClient(account_url, credential)
-
 
 # Funkcja odczytu z Blob Storage
 def blob_read(blob_name):
@@ -34,10 +32,27 @@ def blob_read(blob_name):
 
     return rioxarray.open_rasterio(stream)
 
+# Funkcja tworząca tabelę, jeśli nie istnieje
+def create_table_if_not_exists(engine):
+    with engine.connect() as conn:
+        conn.execute(sqlalchemy.text("""
+        CREATE TABLE IF NOT EXISTS raster_stats (
+            id SERIAL PRIMARY KEY,
+            index_name TEXT NOT NULL,
+            min_value DOUBLE PRECISION,
+            max_value DOUBLE PRECISION,
+            mean_value DOUBLE PRECISION,
+            std_dev DOUBLE PRECISION,
+            cloud_cover DOUBLE PRECISION,
+            calculation_date TIMESTAMP
+        )
+        """))
+        conn.commit()
 
 # Funkcja do zapisu statystyk do bazy danych
 def save_stats_to_db(index_name, stats, cloud_cover):
     engine = sqlalchemy.create_engine(get_connection_uri())
+    create_table_if_not_exists(engine)
 
     with engine.connect() as conn:
         conn.execute(
@@ -72,7 +87,6 @@ def save_stats_to_db(index_name, stats, cloud_cover):
         )
         conn.commit()
 
-
 # Wczytywanie danych
 catalog = pystac_client.Client.open(
     "https://planetarycomputer.microsoft.com/api/stac/v1",
@@ -85,7 +99,6 @@ items = search.item_collection()
 
 selected_item = min(items, key=lambda item: item.properties["eo:cloud_cover"])
 
-
 # Wczytywanie danego pasma
 def load_band(item, band_name, match=None):
     band = rioxarray.open_rasterio(item.assets[band_name].href, overview_level=1).squeeze()
@@ -94,30 +107,24 @@ def load_band(item, band_name, match=None):
         band = band.rio.reproject_match(match)
     return band
 
-
 # Obliczanie wskaźników
 def calc_index(index):
     if index == "NDVI":
         red = load_band(selected_item, "B04")
         nir = load_band(selected_item, "B08")
-        ndvi = (nir - red) / (nir + red)
-        return ndvi
+        return (nir - red) / (nir + red)
     elif index == "NDII":
         swir = load_band(selected_item, "B11")
         nir = load_band(selected_item, "B08", match=swir)
-        ndii = (nir - swir) / (nir + swir)
-        return ndii
+        return (nir - swir) / (nir + swir)
     elif index == "NDBI":
         swir = load_band(selected_item, "B11")
         nir = load_band(selected_item, "B08", match=swir)
-        ndbi = (swir - nir) / (swir + nir)
-        return ndbi
+        return (swir - nir) / (swir + nir)
     elif index == "NDWI":
         green = load_band(selected_item, "B03")
         nir = load_band(selected_item, "B08")
-        ndwi = (green - nir) / (green + nir)
-        return ndwi
-
+        return (green - nir) / (green + nir)
 
 # STREAMLIT UI
 st.title("Wizualizacja wskaźników")
